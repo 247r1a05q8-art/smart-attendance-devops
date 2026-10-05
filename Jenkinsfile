@@ -32,7 +32,7 @@ pipeline {
 
         stage('Run Tests') {
             steps {
-                bat 'npm test'
+                bat 'cd backend && npm test'
             }
         }
 

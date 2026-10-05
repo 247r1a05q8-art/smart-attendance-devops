@@ -52,7 +52,7 @@ pipeline {
 
         stage('Health Check') {
             steps {
-                bat 'powershell -NoProfile -Command "Invoke-WebRequest -Uri http://localhost:%APP_PORT%/health -UseBasicParsing"'
+                bat '"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -NoProfile -Command "Invoke-WebRequest -Uri http://localhost:%APP_PORT%/health -UseBasicParsing"'
             }
         }
     }

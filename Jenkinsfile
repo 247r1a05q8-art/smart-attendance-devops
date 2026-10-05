@@ -52,7 +52,7 @@ pipeline {
 
         stage('Health Check') {
             steps {
-                bat 'curl.exe -f http://localhost:%APP_PORT%/health'
+                bat 'powershell -NoProfile -Command "Invoke-WebRequest -Uri http://localhost:%APP_PORT%/health -UseBasicParsing"'
             }
         }
     }

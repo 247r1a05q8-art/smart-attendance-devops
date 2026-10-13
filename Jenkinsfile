@@ -8,6 +8,7 @@ pipeline {
     }
 
     environment {
+        PATH+NODE = 'C:\\Program Files\\nodejs'
         IMAGE_NAME = 'smart-attendance'
         CONTAINER_NAME = 'smart-attendance'
         APP_PORT = '10000'
@@ -15,7 +16,9 @@ pipeline {
 
     stages {
         stage('Checkout') {
-            steps { checkout scm }
+            steps {
+                checkout scm
+            }
         }
 
         stage('Check Tools') {
@@ -27,11 +30,15 @@ pipeline {
         }
 
         stage('Install Dependencies') {
-            steps { bat 'npm install' }
+            steps {
+                bat 'npm install'
+            }
         }
 
         stage('Run Tests') {
-            steps { bat 'npm test' }
+            steps {
+                bat 'npm test'
+            }
         }
 
         stage('Build Docker Image') {
@@ -41,7 +48,13 @@ pipeline {
         }
 
         stage('Deploy to Docker') {
-            when { expression { env.BRANCH_NAME == 'main' || env.GIT_BRANCH == 'origin/main' || env.GIT_BRANCH == 'main' } }
+            when {
+                expression {
+                    env.BRANCH_NAME == 'main' ||
+                    env.GIT_BRANCH == 'origin/main' ||
+                    env.GIT_BRANCH == 'main'
+                }
+            }
             steps {
                 bat '''@echo off
                     docker rm -f %CONTAINER_NAME% 2>NUL
@@ -52,21 +65,35 @@ pipeline {
         }
 
         stage('Health Check') {
-            when { expression { env.BRANCH_NAME == 'main' || env.GIT_BRANCH == 'origin/main' || env.GIT_BRANCH == 'main' } }
+            when {
+                expression {
+                    env.BRANCH_NAME == 'main' ||
+                    env.GIT_BRANCH == 'origin/main' ||
+                    env.GIT_BRANCH == 'main'
+                }
+            }
             steps {
                 powershell '''
                     $uri = "http://localhost:$env:APP_PORT/health"
                     $healthy = $false
+
                     for ($i = 0; $i -lt 15; $i++) {
                         try {
                             $response = Invoke-WebRequest -Uri $uri -UseBasicParsing -TimeoutSec 2
-                            if ($response.StatusCode -eq 200) { $healthy = $true; break }
-                        } catch { Start-Sleep -Seconds 2 }
+                            if ($response.StatusCode -eq 200) {
+                                $healthy = $true
+                                break
+                            }
+                        } catch {
+                            Start-Sleep -Seconds 2
+                        }
                     }
+
                     if (-not $healthy) {
                         docker logs $env:CONTAINER_NAME
                         throw "Health check failed at $uri"
                     }
+
                     Write-Host "Application is healthy at $uri"
                 '''
             }
@@ -74,8 +101,14 @@ pipeline {
     }
 
     post {
-        success { echo 'Tests passed; Docker image built. Main-branch deployment completed when applicable.' }
-        failure { echo 'Pipeline failed. Review the stage logs before deploying.' }
-        always { echo 'Smart Attendance CI/CD pipeline finished.' }
+        success {
+            echo 'Tests passed; Docker image built. Main-branch deployment completed when applicable.'
+        }
+        failure {
+            echo 'Pipeline failed. Review the stage logs before deploying.'
+        }
+        always {
+            echo 'Smart Attendance CI/CD pipeline finished.'
+        }
     }
 }

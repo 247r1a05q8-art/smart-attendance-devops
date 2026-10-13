@@ -1,28 +1,118 @@
-const test=require('node:test');
-const assert=require('node:assert/strict');
-const {spawn}=require('node:child_process');
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
 
 let child;
 let base;
 
-test.before(async()=>{
- child=spawn(process.execPath,['server.js'],{env:{...process.env,PORT:'18080'},stdio:'ignore'});
- base='http://127.0.0.1:18080';
- for(let i=0;i<50;i++){try{const r=await fetch(base+'/health');if(r.ok)return;}catch{}await new Promise(r=>setTimeout(r,100));}
- throw new Error('Server did not start');
-});
-test.after(()=>child?.kill());
+test.before(async () => {
+    child = spawn(process.execPath, ['server.js'], {
+        cwd: process.cwd(),
+        env: {
+            ...process.env,
+            PORT: '18080'
+        },
+        stdio: ['ignore', 'pipe', 'pipe']
+    });
 
-test('health endpoint is available',async()=>{
- const r=await fetch(base+'/health');assert.equal(r.status,200);const d=await r.json();assert.equal(d.status,'ok');
+    child.stdout.on('data', data => {
+        process.stdout.write('[SERVER] ' + data);
+    });
+
+    child.stderr.on('data', data => {
+        process.stderr.write('[SERVER ERROR] ' + data);
+    });
+
+    base = 'http://127.0.0.1:18080';
+
+    for (let i = 0; i < 50; i++) {
+        if (child.exitCode !== null) {
+            throw new Error(
+                'Server exited before starting. Exit code: ' +
+                child.exitCode
+            );
+        }
+
+        try {
+            const response = await fetch(base + '/health');
+
+            if (response.ok) {
+                return;
+            }
+        } catch (error) {
+            // Server may still be starting.
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    child.kill();
+    throw new Error('Server did not start within 5 seconds');
 });
-test('demo student can login',async()=>{
- const r=await fetch(base+'/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'student@demo.local',password:'Student@123'})});
- assert.equal(r.status,200);const d=await r.json();assert.equal(d.role,'STUDENT');
+
+test.after(() => {
+    if (child && child.exitCode === null && !child.killed) {
+        child.kill();
+    }
 });
-test('student attendance analysis is available',async()=>{
- const login=await fetch(base+'/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'student@demo.local',password:'Student@123'})});
- const me=await login.json();
- const r=await fetch(base+'/api/student/attendance',{headers:{'x-user-id':String(me.id),'x-user-role':me.role}});
- assert.equal(r.status,200);const d=await r.json();assert.ok(Array.isArray(d.subjects));assert.ok(Array.isArray(d.trend));
+
+test('health endpoint is available', async () => {
+    const response = await fetch(base + '/health');
+
+    assert.equal(response.status, 200);
+
+    const data = await response.json();
+    assert.equal(data.status, 'ok');
+});
+
+test('demo student can login', async () => {
+    const response = await fetch(base + '/api/login', {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+            email: 'student@demo.local',
+            password: 'Student@123'
+        })
+    });
+
+    assert.equal(response.status, 200);
+
+    const data = await response.json();
+    assert.equal(data.role, 'STUDENT');
+});
+
+test('student attendance analysis is available', async () => {
+    const loginResponse = await fetch(base + '/api/login', {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+            email: 'student@demo.local',
+            password: 'Student@123'
+        })
+    });
+
+    assert.equal(loginResponse.status, 200);
+
+    const user = await loginResponse.json();
+
+    const response = await fetch(
+        base + '/api/student/attendance',
+        {
+            headers: {
+                'x-user-id': String(user.id),
+                'x-user-role': user.role
+            }
+        }
+    );
+
+    assert.equal(response.status, 200);
+
+    const data = await response.json();
+
+    assert.ok(Array.isArray(data.subjects));
+    assert.ok(Array.isArray(data.trend));
 });

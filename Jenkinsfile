@@ -49,6 +49,7 @@ pipeline {
         stage('Deploy to Docker') {
             steps {
                 echo 'Deploying Smart Attendance container...'
+
                 bat '''
                     docker stop %CONTAINER_NAME% 2>NUL
                     docker rm %CONTAINER_NAME% 2>NUL
@@ -60,8 +61,9 @@ pipeline {
         stage('Health Check') {
             steps {
                 echo 'Checking application health...'
+
                 bat '''
-                    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ok = $false; for ($i = 0; $i -lt 12; $i++) { try { $r = Invoke-WebRequest -Uri 'http://localhost:%APP_PORT%/health' -TimeoutSec 5; if ($r.StatusCode -eq 200) { $ok = $true; break } } catch { Start-Sleep -Seconds 5 } }; if (-not $ok) { docker logs %CONTAINER_NAME%; exit 1 }"
+                    node -e "async function check(){for(let i=0;i<12;i++){try{const r=await fetch('http://localhost:%APP_PORT%/health');if(r.ok){const d=await r.json();if(d.status==='ok'){console.log('Health check passed:',JSON.stringify(d));return;}}}catch(e){}await new Promise(r=>setTimeout(r,5000));}console.error('Health check failed after retries');process.exit(1);}check();"
                 '''
             }
         }

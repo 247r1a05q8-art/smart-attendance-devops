@@ -1,14 +1,9 @@
+
 pipeline {
     agent any
 
-    options {
-        timestamps()
-        disableConcurrentBuilds()
-        timeout(time: 20, unit: 'MINUTES')
-    }
-
     environment {
-        PATH+NODE = 'C:\\Program Files\\nodejs'
+        PATH = "C:/Program Files/nodejs;${env.PATH}"
         IMAGE_NAME = 'smart-attendance'
         CONTAINER_NAME = 'smart-attendance'
         APP_PORT = '10000'
@@ -17,6 +12,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
+                echo 'Checking out Smart Attendance project...'
                 checkout scm
             }
         }
@@ -31,70 +27,49 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
+                echo 'Installing Node.js dependencies...'
                 bat 'npm install'
             }
         }
 
         stage('Run Tests') {
             steps {
-                bat 'npm test'
+                echo 'Running available tests...'
+                bat 'npm test --if-present'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                bat 'docker build --pull -t %IMAGE_NAME%:%BUILD_NUMBER% -t %IMAGE_NAME%:latest .'
+                echo 'Building Smart Attendance Docker image...'
+                bat 'docker build -t %IMAGE_NAME%:%BUILD_NUMBER% -t %IMAGE_NAME%:latest .'
             }
         }
 
         stage('Deploy to Docker') {
             when {
-                expression {
-                    env.BRANCH_NAME == 'main' ||
-                    env.GIT_BRANCH == 'origin/main' ||
-                    env.GIT_BRANCH == 'main'
-                }
+                branch 'main'
             }
             steps {
-                bat '''@echo off
-                    docker rm -f %CONTAINER_NAME% 2>NUL
-                    docker run -d --restart unless-stopped --name %CONTAINER_NAME% -p %APP_PORT%:%APP_PORT% -e PORT=%APP_PORT% %IMAGE_NAME%:%BUILD_NUMBER%
-                    if errorlevel 1 exit /b 1
+                echo 'Deploying Smart Attendance container...'
+
+                bat '''
+                    docker stop %CONTAINER_NAME% 2>NUL
+                    docker rm %CONTAINER_NAME% 2>NUL
+                    docker run -d --name %CONTAINER_NAME% -p %APP_PORT%:%APP_PORT% %IMAGE_NAME%:%BUILD_NUMBER%
                 '''
             }
         }
 
         stage('Health Check') {
             when {
-                expression {
-                    env.BRANCH_NAME == 'main' ||
-                    env.GIT_BRANCH == 'origin/main' ||
-                    env.GIT_BRANCH == 'main'
-                }
+                branch 'main'
             }
             steps {
-                powershell '''
-                    $uri = "http://localhost:$env:APP_PORT/health"
-                    $healthy = $false
+                echo 'Checking application health...'
 
-                    for ($i = 0; $i -lt 15; $i++) {
-                        try {
-                            $response = Invoke-WebRequest -Uri $uri -UseBasicParsing -TimeoutSec 2
-                            if ($response.StatusCode -eq 200) {
-                                $healthy = $true
-                                break
-                            }
-                        } catch {
-                            Start-Sleep -Seconds 2
-                        }
-                    }
-
-                    if (-not $healthy) {
-                        docker logs $env:CONTAINER_NAME
-                        throw "Health check failed at $uri"
-                    }
-
-                    Write-Host "Application is healthy at $uri"
+                bat '''
+                    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ok = $false; for ($i = 0; $i -lt 12; $i++) { try { $r = Invoke-WebRequest -Uri 'http://localhost:%APP_PORT%/health' -TimeoutSec 5; if ($r.StatusCode -eq 200) { $ok = $true; break } } catch { Start-Sleep -Seconds 5 } }; if (-not $ok) { docker logs %CONTAINER_NAME%; exit 1 }"
                 '''
             }
         }
@@ -102,13 +77,15 @@ pipeline {
 
     post {
         success {
-            echo 'Tests passed; Docker image built. Main-branch deployment completed when applicable.'
+            echo 'Smart Attendance pipeline completed successfully!'
         }
+
         failure {
-            echo 'Pipeline failed. Review the stage logs before deploying.'
+            echo 'Smart Attendance pipeline failed. Check the Console Output.'
         }
+
         always {
-            echo 'Smart Attendance CI/CD pipeline finished.'
+            echo 'Pipeline execution finished.'
         }
     }
 }

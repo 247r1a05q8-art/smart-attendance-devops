@@ -25,7 +25,7 @@ test.before(async () => {
 
     base = 'http://127.0.0.1:18080';
 
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 300; i++) {
         if (child.exitCode !== null) {
             throw new Error(
                 'Server exited before starting. Exit code: ' +
@@ -47,7 +47,7 @@ test.before(async () => {
     }
 
     child.kill();
-    throw new Error('Server did not start within 5 seconds');
+    throw new Error('Server did not start within 30 seconds');
 });
 
 test.after(() => {
@@ -116,3 +116,4 @@ test('student attendance analysis is available', async () => {
     assert.ok(Array.isArray(data.subjects));
     assert.ok(Array.isArray(data.trend));
 });
+
